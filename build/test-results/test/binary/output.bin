@@ -1,0 +1,65 @@
+Parsed address components:
+  road: main street
+  city: springfield
+  postcode: 62701
+  house_number: 123
+  state: il
+3Parsed address components (with language/country):
+  road: main street
+  city: springfield
+  postcode: 62701
+  house_number: 123
+  state: il
+Parsed German address:
+  country: germany
+  road: unter den linden
+  city: berlin
+  postcode: 10117
+  house_number: 77
+&Address expansions for '123 Main St':
+  123 main saint
+  123 main street
+3Address expansions with options for '123 Main St':
+  123 main saint
+  123 main street
+	/Address expansions for '123 E 45th St Apt 6B':
+	  123 east 45th saint apt 6b
+	#  123 east 45th saint apartment 6b
+	  123 east 45th street apt 6b
+	$  123 east 45th street apartment 6b
+	  123 e 45th saint apt 6b
+	   123 e 45th saint apartment 6b
+	  123 e 45th street apt 6b
+	!  123 e 45th street apartment 6b
+	  123 east 45th saint apt 6 b
+	$  123 east 45th saint apartment 6 b
+	  123 east 45th street apt 6 b
+	%  123 east 45th street apartment 6 b
+	  123 e 45th saint apt 6 b
+	!  123 e 45th saint apartment 6 b
+	  123 e 45th street apt 6 b
+	"  123 e 45th street apartment 6 b
+	  123 east 45 saint apt 6b
+	!  123 east 45 saint apartment 6b
+	  123 east 45 street apt 6b
+	"  123 east 45 street apartment 6b
+	  123 e 45 saint apt 6b
+	  123 e 45 saint apartment 6b
+	  123 e 45 street apt 6b
+	  123 e 45 street apartment 6b
+	  123 east 45 saint apt 6 b
+	"  123 east 45 saint apartment 6 b
+	  123 east 45 street apt 6 b
+	#  123 east 45 street apartment 6 b
+	  123 e 45 saint apt 6 b
+	  123 e 45 saint apartment 6 b
+	  123 e 45 street apt 6 b
+	   123 e 45 street apartment 6 b
+
++Root address expansions for '123 Main St':
+
+  123 main
+8Root address expansions with options for '123 Main St':
+  123 main
+Parsed empty address: {}
+'Expansions for empty string: 0 results

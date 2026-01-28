@@ -1,0 +1,147 @@
+plugins {
+    id 'java-library'
+    id 'c'
+}
+
+group = 'com.dnebinger'
+version = '1.0.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// JNI header generation directory
+def jniHeaderDir = layout.buildDirectory.dir('generated/jni-headers')
+
+tasks.register('generateJniHeaders', Exec) {
+    dependsOn compileJava
+
+    def classesDir = compileJava.destinationDirectory.get().asFile
+
+    doFirst {
+        jniHeaderDir.get().asFile.mkdirs()
+    }
+
+    commandLine 'javac',
+        '-h', jniHeaderDir.get().asFile.absolutePath,
+        '-d', classesDir.absolutePath,
+        '-cp', classesDir.absolutePath,
+        *fileTree('src/main/java').matching { include '**/*.java' }.files.collect { it.absolutePath }
+}
+
+// Helper to determine OS-specific JNI include directory
+def getOsIncludeDir() {
+    def os = System.getProperty('os.name').toLowerCase()
+    if (os.contains('mac')) return 'darwin'
+    if (os.contains('linux')) return 'linux'
+    if (os.contains('win')) return 'win32'
+    return 'linux'
+}
+
+// Helper to find Java include directory (works with both JDK and JRE paths)
+def getJavaIncludeDir() {
+    def javaHome = System.getProperty('java.home')
+    // Try java.home directly (modern JDKs)
+    def includeDir = new File(javaHome, 'include')
+    if (includeDir.exists()) {
+        return includeDir.absolutePath
+    }
+    // Try parent directory (older JDKs where java.home points to jre)
+    includeDir = new File(javaHome, '../include')
+    if (includeDir.exists()) {
+        return includeDir.canonicalPath
+    }
+    // Fallback to JAVA_HOME environment variable
+    def envJavaHome = System.getenv('JAVA_HOME')
+    if (envJavaHome) {
+        includeDir = new File(envJavaHome, 'include')
+        if (includeDir.exists()) {
+            return includeDir.absolutePath
+        }
+    }
+    throw new GradleException("Cannot find JNI headers. Set JAVA_HOME to a JDK installation.")
+}
+
+// Helper to determine OS and architecture for native lib packaging
+def getOsArch() {
+    def os = System.getProperty('os.name').toLowerCase()
+    def arch = System.getProperty('os.arch').toLowerCase()
+
+    def osName
+    if (os.contains('mac')) osName = 'darwin'
+    else if (os.contains('linux')) osName = 'linux'
+    else if (os.contains('win')) osName = 'windows'
+    else osName = 'linux'
+
+    def archName
+    if (arch.contains('aarch64') || arch.contains('arm64')) archName = 'aarch64'
+    else if (arch.contains('amd64') || arch.contains('x86_64')) archName = 'x86_64'
+    else archName = arch
+
+    return "${osName}-${archName}"
+}
+
+// C library configuration using the software model
+model {
+    components {
+        postal4j(NativeLibrarySpec) {
+            sources {
+                c {
+                    source {
+                        srcDir 'src/main/c'
+                        include '**/*.c'
+                    }
+                    exportedHeaders {
+                        srcDirs 'src/main/c',
+                                jniHeaderDir.get().asFile.absolutePath,
+                                getJavaIncludeDir(),
+                                "${getJavaIncludeDir()}/${getOsIncludeDir()}",
+                                '/usr/local/include/libpostal',
+                                '/opt/homebrew/include/libpostal'
+                    }
+                }
+            }
+
+            binaries.all {
+                if (it instanceof SharedLibraryBinarySpec) {
+                    cCompiler.args '-fPIC'
+                    linker.args '-lpostal'
+                }
+            }
+        }
+    }
+
+    toolChains {
+        gcc(Gcc)
+        clang(Clang)
+    }
+}
+
+// Task to copy native library to resources for packaging
+tasks.register('copyNativeLib', Copy) {
+    dependsOn 'postal4jSharedLibrary'
+
+    from layout.buildDirectory.dir('libs/postal4j/shared')
+    into layout.buildDirectory.dir("resources/main/native/${getOsArch()}")
+
+    include '*.so', '*.dylib', '*.dll'
+}
+
+tasks.named('jar') {
+    dependsOn 'copyNativeLib'
+}

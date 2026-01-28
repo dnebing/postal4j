@@ -1,0 +1,8 @@
+-shared
+-Wl,-install_name,libpostal4j.dylib
+-o
+/Users/dnebinger/claude/postal4j/build/libs/postal4j/shared/libpostal4j.dylib
+/Users/dnebinger/claude/postal4j/build/objs/postal4j/shared/postal4jC/9w6fj3jo1qausa65qkb7ee3ri/postal4j_jni.o
+-lpostal
+-arch
+arm64

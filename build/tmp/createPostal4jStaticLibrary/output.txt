@@ -1,0 +1,4 @@
+See file:///Users/dnebinger/claude/postal4j/build/tmp/createPostal4jStaticLibrary/output.txt for all output for createPostal4jStaticLibrary.
+archiving libpostal4j.a successful.
+
+Finished createPostal4jStaticLibrary, see full log file:///Users/dnebinger/claude/postal4j/build/tmp/createPostal4jStaticLibrary/output.txt.
