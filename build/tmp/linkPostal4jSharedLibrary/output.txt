@@ -1,4 +1,0 @@
-See file:///Users/dnebinger/claude/postal4j/build/tmp/linkPostal4jSharedLibrary/output.txt for all output for linkPostal4jSharedLibrary.
-linking libpostal4j.dylib successful.
-
-Finished linkPostal4jSharedLibrary, see full log file:///Users/dnebinger/claude/postal4j/build/tmp/linkPostal4jSharedLibrary/output.txt.

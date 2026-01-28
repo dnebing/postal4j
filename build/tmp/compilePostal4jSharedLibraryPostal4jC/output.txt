@@ -1,4 +1,0 @@
-See file:///Users/dnebinger/claude/postal4j/build/tmp/compilePostal4jSharedLibraryPostal4jC/output.txt for all output for compilePostal4jSharedLibraryPostal4jC.
-compiling postal4j_jni.c successful.
-
-Finished compilePostal4jSharedLibraryPostal4jC, see full log file:///Users/dnebinger/claude/postal4j/build/tmp/compilePostal4jSharedLibraryPostal4jC/output.txt.

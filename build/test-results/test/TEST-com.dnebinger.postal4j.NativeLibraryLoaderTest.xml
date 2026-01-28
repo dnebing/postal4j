@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.dnebinger.postal4j.NativeLibraryLoaderTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-01-28T18:47:51.446Z" hostname="butthead" time="0.336">
-  <properties/>
-  <testcase name="testLoadNonExistentLibrary()" classname="com.dnebinger.postal4j.NativeLibraryLoaderTest" time="0.002"/>
-  <testcase name="testLoadLibrary()" classname="com.dnebinger.postal4j.NativeLibraryLoaderTest" time="0.129"/>
-  <testcase name="testLoadLibraryMultipleTimes()" classname="com.dnebinger.postal4j.NativeLibraryLoaderTest" time="0.204"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

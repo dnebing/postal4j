@@ -233,6 +233,50 @@ postal4j/
 | `./gradlew generateJniHeaders` | Generate JNI headers from Java native methods |
 | `./gradlew test` | Run tests |
 | `./gradlew clean` | Clean build artifacts |
+| `./gradlew publishToMavenLocal` | Publish to local Maven repository (~/.m2/repository) |
+
+## Publishing to Maven Local
+
+To install postal4j to your local Maven repository:
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+This publishes the artifact to `~/.m2/repository/com/dnebinger/postal4j/1.0.0-SNAPSHOT/`.
+
+Other projects can then depend on postal4j by adding:
+
+**Gradle (Groovy):**
+```groovy
+repositories {
+    mavenLocal()
+}
+
+dependencies {
+    implementation 'com.dnebinger:postal4j:1.0.0-SNAPSHOT'
+}
+```
+
+**Gradle (Kotlin DSL):**
+```kotlin
+repositories {
+    mavenLocal()
+}
+
+dependencies {
+    implementation("com.dnebinger:postal4j:1.0.0-SNAPSHOT")
+}
+```
+
+**Maven:**
+```xml
+<dependency>
+    <groupId>com.dnebinger</groupId>
+    <artifactId>postal4j</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
 
 ## How It Works
 

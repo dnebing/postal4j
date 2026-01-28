@@ -1,6 +1,7 @@
 plugins {
     id 'java-library'
     id 'c'
+    id 'maven-publish'
 }
 
 group = 'com.dnebinger'
@@ -144,4 +145,43 @@ tasks.register('copyNativeLib', Copy) {
 
 tasks.named('jar') {
     dependsOn 'copyNativeLib'
+}
+
+// Maven Local publishing configuration
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            pom {
+                name = 'postal4j'
+                description = 'Java JNI wrapper for libpostal - fast statistical parser/normalizer for street addresses'
+                url = 'https://github.com/dnebing/postal4j'
+
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'dnebing'
+                        name = 'David Nebinger'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/dnebing/postal4j.git'
+                    developerConnection = 'scm:git:ssh://github.com/dnebing/postal4j.git'
+                    url = 'https://github.com/dnebing/postal4j'
+                }
+            }
+        }
+    }
+
+    repositories {
+        mavenLocal()
+    }
 }
