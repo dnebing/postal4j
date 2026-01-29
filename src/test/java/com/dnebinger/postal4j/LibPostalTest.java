@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class LibPostalTest {
 
-    private static final String DATA_DIR = "/Volumes/MinistackSSD/libpostal";
+    private static final String DATA_DIR = "/Volumes/MinistackSSD/libpostal/libpostal";
     private static boolean setupSucceeded = false;
 
     @Test
@@ -20,10 +20,20 @@ class LibPostalTest {
     void testSetupWithoutDataDir_expectFailure() {
         // This should not fail because the default data directory should exist
         assertDoesNotThrow(() -> LibPostal.setup());
+        setupSucceeded = true;
     }
 
     @Test
     @Order(2)
+    void testTeardownAfterSetup() {
+        assumeTrue(setupSucceeded, "Setup must succeed before running teardown");
+
+        assertDoesNotThrow(() -> LibPostal.teardown());
+        setupSucceeded = false;
+    }
+
+    @Test
+    @Order(3)
     void testSetupWithDataDir() {
         // This should succeed with the correct data directory
         assertDoesNotThrow(() -> LibPostal.setup(DATA_DIR));
@@ -31,7 +41,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     void testParseAddressSimple() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -46,7 +56,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     void testParseAddressWithLanguageAndCountry() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -65,7 +75,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     void testParseAddressInternational() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -84,7 +94,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     void testExpandAddressSimple() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -100,7 +110,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     void testExpandAddressWithOptions() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -138,7 +148,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     void testExpandAddressWithAbbreviation() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -154,7 +164,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     void testExpandRootAddressSimple() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -170,7 +180,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     void testExpandRootAddressWithOptions() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -208,7 +218,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     void testParseAddressEmptyString() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
@@ -220,7 +230,7 @@ class LibPostalTest {
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     void testExpandAddressEmptyString() {
         assumeTrue(setupSucceeded, "Setup must succeed before running this test");
 
