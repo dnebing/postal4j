@@ -9,16 +9,92 @@
 
 // Forward declarations for helper functions
 void throwException(JNIEnv *env, const char *message);
-jobject parseAddressWithOptions(JNIEnv *env, char* address, libpostal_address_parser_options_t options);
-jobjectArray expandAddressWithOptions(JNIEnv *env, char* address, libpostal_normalize_options_t options);
-jobjectArray expandRootAddressWithOptions(JNIEnv *env, char* address, libpostal_normalize_options_t options);
-libpostal_normalize_options_t* mallocNormalizeOptions(JNIEnv *env, jobjectArray languages, jboolean latinAscii, jboolean transliterate,
+jobject parseAddressWithOptions(JNIEnv *env, char* address, libpostal_address_parser_options_t* options);
+jobjectArray expandAddressWithOptions(JNIEnv *env, char* address, libpostal_normalize_options_t* options);
+jobjectArray expandRootAddressWithOptions(JNIEnv *env, char* address, libpostal_normalize_options_t* options);
+void updateNormalizeOptions(JNIEnv *env, libpostal_normalize_options_t* options, jobjectArray languages, jboolean latinAscii, jboolean transliterate,
     jboolean stripAccents, jboolean decompose, jboolean lowercase, jboolean trimString, jboolean dropParentheticals, jboolean replaceNumericHyphens,
     jboolean deleteNumericHyphens, jboolean splitAlphaFromNumeric, jboolean replaceWordHyphens, jboolean deleteWordHyphens,
     jboolean deleteFinalPeriods, jboolean deleteAcronymPeriods, jboolean dropEnglishPossessives, jboolean deleteApostrophes, jboolean expandNumex,
     jboolean romanNumerals, jint addressComponents);
-void freeNormalizeOptions(libpostal_normalize_options_t* options);
+void cleanupNormalizeOptions(libpostal_normalize_options_t* options);
 jobjectArray createResultArray(JNIEnv *env, char** expansions, size_t numExpansions);
+
+// Cached values for the class and method IDs
+static jclass hashMapClass;
+static jmethodID hashMapInit;
+static jmethodID hashMapPut;
+static jclass stringClass;
+static jclass exceptionClass;
+static jmethodID exceptionInit;
+static int initialized = 0;
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+    JNIEnv *env;
+    (*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_8);
+
+    jclass local = (*env)->FindClass(env, "java/lang/RuntimeException");
+    exceptionClass = (*env)->NewGlobalRef(env, local);
+    (*env)->DeleteLocalRef(env, local);
+    exceptionInit = (*env)->GetMethodID(env, exceptionClass, "<init>", "(Ljava/lang/String;)V");
+
+    // initialize the cached values, first the hash map class
+    jclass localHashMapClass = (*env)->FindClass(env, "java/util/HashMap");
+
+    // 2. Create a Global Reference so it survives the end of this function
+    hashMapClass = (jclass)(*env)->NewGlobalRef(env, localHashMapClass);
+    (*env)->DeleteLocalRef(env, localHashMapClass);
+
+    // 3. Get Method IDs (these don't need GlobalRefs)
+    hashMapInit = (*env)->GetMethodID(env, hashMapClass, "<init>", "()V");
+    hashMapPut = (*env)->GetMethodID(env, hashMapClass, "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+
+    // 4. Find the String class
+    jclass localStringClass = (*env)->FindClass(env, "java/lang/String");
+
+    // 5. Create a Global Reference so it survives the end of this function
+    stringClass = (jclass)(*env)->NewGlobalRef(env, localStringClass);
+    (*env)->DeleteLocalRef(env, localStringClass);
+
+    return JNI_VERSION_1_8;
+}
+
+JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
+    JNIEnv *env = NULL;
+    if ((*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_8) != JNI_OK || env == NULL) {
+        return;
+    }
+
+    // if we initialized libpostal, be sure to tear it down before unloading the library
+    if (initialized) {
+        libpostal_teardown_language_classifier();
+        libpostal_teardown_parser();
+        libpostal_teardown();
+
+        initialized = 0;
+    }
+
+    if (exceptionClass) {
+        (*env)->DeleteGlobalRef(env, exceptionClass);
+        exceptionClass = NULL;
+    }
+    if (hashMapClass) {
+        (*env)->DeleteGlobalRef(env, hashMapClass);
+        hashMapClass = NULL;
+    }
+    if (stringClass) {
+        (*env)->DeleteGlobalRef(env, stringClass);
+        stringClass = NULL;
+    }
+
+    // set to nulls so we don't try to use or delete them again.
+    hashMapClass = NULL;
+    stringClass = NULL;
+    hashMapInit = NULL;
+    hashMapPut = NULL;
+    exceptionClass = NULL;
+    exceptionInit = NULL;
+}
 
 /*
  * Class:     com_dnebinger_postal4j_LibPostal
@@ -27,6 +103,12 @@ jobjectArray createResultArray(JNIEnv *env, char** expansions, size_t numExpansi
  */
 JNIEXPORT void JNICALL Java_com_dnebinger_postal4j_LibPostal_setup__
   (JNIEnv *env, jclass cls) {
+
+    if (initialized) {
+        throwException(env, "LibPostal already initialized");
+        return;
+    }
+
     // initialize libpostal first
     if (!libpostal_setup()) {
         throwException(env, "Error initializing libpostal");
@@ -53,6 +135,12 @@ JNIEXPORT void JNICALL Java_com_dnebinger_postal4j_LibPostal_setup__
  */
 JNIEXPORT void JNICALL Java_com_dnebinger_postal4j_LibPostal_setup__Ljava_lang_String_2
   (JNIEnv *env, jclass cls, jstring dataDir) {
+
+    if (initialized) {
+        throwException(env, "LibPostal already initialized");
+        return;
+    }
+
     // extract the data directory from the JNI string
     const char *dataDirStr = (*env)->GetStringUTFChars(env, dataDir, NULL);
 
@@ -93,11 +181,15 @@ JNIEXPORT void JNICALL Java_com_dnebinger_postal4j_LibPostal_setup__Ljava_lang_S
  */
 JNIEXPORT void JNICALL Java_com_dnebinger_postal4j_LibPostal_teardown
   (JNIEnv *env, jclass cls) {
-    // reverse order teardown of the modules
 
-    libpostal_teardown_language_classifier();
-    libpostal_teardown_parser();
-    libpostal_teardown();
+    if (initialized) {
+        // reverse order teardown of the modules
+        libpostal_teardown_language_classifier();
+        libpostal_teardown_parser();
+        libpostal_teardown();
+
+        initialized = 0;
+    }
 }
 
 /*
@@ -120,7 +212,7 @@ JNIEXPORT jobject JNICALL Java_com_dnebinger_postal4j_LibPostal_parseAddress__Lj
     // initialize the address parser options
     libpostal_address_parser_options_t options = libpostal_get_address_parser_default_options();
 
-    jobject resultMap = parseAddressWithOptions(env, (char*)address, options);
+    jobject resultMap = parseAddressWithOptions(env, (char*)address, &options);
 
     // free the address string
     (*env)->ReleaseStringUTFChars(env, jaddress, address);
@@ -136,9 +228,9 @@ JNIEXPORT jobject JNICALL Java_com_dnebinger_postal4j_LibPostal_parseAddress__Lj
  * @param options the address parser options
  * @return the result map
  */
-jobject parseAddressWithOptions(JNIEnv *env, char* address, libpostal_address_parser_options_t options) {
+jobject parseAddressWithOptions(JNIEnv *env, char* address, libpostal_address_parser_options_t* options) {
     // parse the address
-    libpostal_address_parser_response_t *response = libpostal_parse_address(address, options);
+    libpostal_address_parser_response_t *response = libpostal_parse_address(address, *options);
 
     if (response == NULL) {
         throwException(env, "Error parsing address");
@@ -146,9 +238,6 @@ jobject parseAddressWithOptions(JNIEnv *env, char* address, libpostal_address_pa
     }
 
     // Create HashMap<String, String> directly that we will return to the caller
-    jclass hashMapClass = (*env)->FindClass(env, "java/util/HashMap");
-    jmethodID hashMapInit = (*env)->GetMethodID(env, hashMapClass, "<init>", "()V");
-    jmethodID hashMapPut = (*env)->GetMethodID(env, hashMapClass, "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
     jobject resultMap = (*env)->NewObject(env, hashMapClass, hashMapInit);
     
     // populate the hash map with the address components
@@ -159,6 +248,10 @@ jobject parseAddressWithOptions(JNIEnv *env, char* address, libpostal_address_pa
 
         // put the label and value into the hash map
         (*env)->CallObjectMethod(env, resultMap, hashMapPut, jlabel, jvalue);
+
+        // Clean up the local table pointers immediately
+        (*env)->DeleteLocalRef(env, jlabel);
+        (*env)->DeleteLocalRef(env, jvalue);
     }
 
     // done with the response
@@ -189,21 +282,18 @@ JNIEXPORT jobject JNICALL Java_com_dnebinger_postal4j_LibPostal_parseAddress__Lj
     const char *country = (*env)->GetStringUTFChars(env, jcountry, NULL);
 
     // create options struct with the language and country
-    libpostal_address_parser_options_t* options = (libpostal_address_parser_options_t*) malloc(sizeof(libpostal_address_parser_options_t));
+    libpostal_address_parser_options_t options = libpostal_get_address_parser_default_options();
 
-    options->language = (char*)language;
-    options->country = (char*)country;
+    options.language = (char*)language;
+    options.country = (char*)country;
 
     // parse the address
-    jobject resultMap = parseAddressWithOptions(env, (char*)address, *options);
+    jobject resultMap = parseAddressWithOptions(env, (char*)address, &options);
 
     // free the strings
     (*env)->ReleaseStringUTFChars(env, jlanguage, language);
     (*env)->ReleaseStringUTFChars(env, jcountry, country);
     (*env)->ReleaseStringUTFChars(env, jaddress, address);
-
-    // free the address parser options
-    free(options);
 
     // return the result map
     return resultMap;
@@ -229,7 +319,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_dnebinger_postal4j_LibPostal_expandAddre
     libpostal_normalize_options_t options = libpostal_get_default_options();
 
     // expand the address
-    jobjectArray resultArray = expandAddressWithOptions(env, (char*)address, options);
+    jobjectArray resultArray = expandAddressWithOptions(env, (char*)address, &options);
 
     // free the address string
     (*env)->ReleaseStringUTFChars(env, jaddress, address);
@@ -245,10 +335,10 @@ JNIEXPORT jobjectArray JNICALL Java_com_dnebinger_postal4j_LibPostal_expandAddre
  * @param options the normalize options
  * @return the result array
  */
-jobjectArray expandAddressWithOptions(JNIEnv *env, char* address, libpostal_normalize_options_t options) {
+jobjectArray expandAddressWithOptions(JNIEnv *env, char* address, libpostal_normalize_options_t* options) {
     // expand the address
     size_t numExpansions;
-    char **expansions = libpostal_expand_address(address, options, &numExpansions);
+    char **expansions = libpostal_expand_address(address, *options, &numExpansions);
 
     return createResultArray(env, expansions, numExpansions);
 }
@@ -279,15 +369,17 @@ JNIEXPORT jobjectArray JNICALL Java_com_dnebinger_postal4j_LibPostal_expandAddre
     }
 
     // create the normalize options struct
-    libpostal_normalize_options_t* options = mallocNormalizeOptions(env, languages, latinAscii, transliterate, stripAccents, decompose, lowercase, trimString,
+    libpostal_normalize_options_t options = libpostal_get_default_options();
+ 
+    updateNormalizeOptions(env, &options,languages, latinAscii, transliterate, stripAccents, decompose, lowercase, trimString,
         dropParentheticals, replaceNumericHyphens, deleteNumericHyphens, splitAlphaFromNumeric, replaceWordHyphens, deleteWordHyphens, deleteFinalPeriods,
         deleteAcronymPeriods, dropEnglishPossessives, deleteApostrophes, expandNumex, romanNumerals, addressComponents);
 
     // expand the address
-    jobjectArray resultArray = expandAddressWithOptions(env, (char*)address, *options);
+    jobjectArray resultArray = expandAddressWithOptions(env, (char*)address, &options);
 
     // free the normalize options
-    freeNormalizeOptions(options);
+    cleanupNormalizeOptions(&options);
 
     // free the address string
     (*env)->ReleaseStringUTFChars(env, jaddress, address);
@@ -316,7 +408,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_dnebinger_postal4j_LibPostal_expandRootA
     libpostal_normalize_options_t options = libpostal_get_default_options();
 
     // expand the address
-    jobjectArray resultArray = expandRootAddressWithOptions(env, (char*)address, options);
+    jobjectArray resultArray = expandRootAddressWithOptions(env, (char*)address, &options);
 
     // free the address string
     (*env)->ReleaseStringUTFChars(env, jaddress, address);
@@ -332,10 +424,10 @@ JNIEXPORT jobjectArray JNICALL Java_com_dnebinger_postal4j_LibPostal_expandRootA
  * @param options the normalize options
  * @return the result array
  */
-jobjectArray expandRootAddressWithOptions(JNIEnv *env, char* address, libpostal_normalize_options_t options) {
+jobjectArray expandRootAddressWithOptions(JNIEnv *env, char* address, libpostal_normalize_options_t* options) {
     // expand the address
     size_t numExpansions;
-    char **expansions = libpostal_expand_address_root(address, options, &numExpansions);
+    char **expansions = libpostal_expand_address_root(address, *options, &numExpansions);
 
     return createResultArray(env, expansions, numExpansions);
 }
@@ -354,7 +446,6 @@ jobjectArray createResultArray(JNIEnv *env, char** expansions, size_t numExpansi
     }
 
     // create the result array
-    jclass stringClass = (*env)->FindClass(env, "java/lang/String");
     jobjectArray resultArray = (*env)->NewObjectArray(env, numExpansions, stringClass, NULL);
 
     // populate the result array
@@ -364,6 +455,9 @@ jobjectArray createResultArray(JNIEnv *env, char** expansions, size_t numExpansi
 
         // set the expansion in the result array
         (*env)->SetObjectArrayElement(env, resultArray, i, jexpansion);
+        
+        // We can safely release the local reference now
+        (*env)->DeleteLocalRef(env, jexpansion);
     }
 
     // done with the expansions
@@ -399,18 +493,20 @@ JNIEXPORT jobjectArray JNICALL Java_com_dnebinger_postal4j_LibPostal_expandRootA
     }
 
     // create the normalize options
-    libpostal_normalize_options_t* options = mallocNormalizeOptions(env, languages, latinAscii, transliterate, stripAccents, decompose, lowercase, trimString,
+    libpostal_normalize_options_t options = libpostal_get_default_options();
+
+    updateNormalizeOptions(env, &options, languages, latinAscii, transliterate, stripAccents, decompose, lowercase, trimString,
         dropParentheticals, replaceNumericHyphens, deleteNumericHyphens, splitAlphaFromNumeric, replaceWordHyphens, deleteWordHyphens, deleteFinalPeriods,
         deleteAcronymPeriods, dropEnglishPossessives, deleteApostrophes, expandNumex, romanNumerals, addressComponents);
 
     // expand the address
-    jobjectArray resultArray = expandRootAddressWithOptions(env, (char*)address, *options);
+    jobjectArray resultArray = expandRootAddressWithOptions(env, (char*)address, &options);
 
     // free the address string
     (*env)->ReleaseStringUTFChars(env, jaddress, address);
 
     // free the normalize options
-    freeNormalizeOptions(options);
+    cleanupNormalizeOptions(&options);
 
     // return the result array
     return resultArray;
@@ -441,13 +537,11 @@ JNIEXPORT jobjectArray JNICALL Java_com_dnebinger_postal4j_LibPostal_expandRootA
  * @param addressComponents the address components flag
  * @return the normalize options struct
  */
-libpostal_normalize_options_t* mallocNormalizeOptions(JNIEnv *env, jobjectArray languages, jboolean latinAscii, jboolean transliterate, jboolean stripAccents, 
+void updateNormalizeOptions(JNIEnv *env, libpostal_normalize_options_t* options, jobjectArray languages, jboolean latinAscii, jboolean transliterate, jboolean stripAccents, 
     jboolean decompose, jboolean lowercase, jboolean trimString, jboolean dropParentheticals, jboolean replaceNumericHyphens, jboolean deleteNumericHyphens, 
     jboolean splitAlphaFromNumeric, jboolean replaceWordHyphens, jboolean deleteWordHyphens, jboolean deleteFinalPeriods, jboolean deleteAcronymPeriods, 
     jboolean dropEnglishPossessives, jboolean deleteApostrophes, jboolean expandNumex, jboolean romanNumerals, jint addressComponents) {
-    // create the normalize options struct
-    libpostal_normalize_options_t* options = (libpostal_normalize_options_t*) malloc(sizeof(libpostal_normalize_options_t));
-
+    
     if (languages != NULL) {
         // set the languages
         options->num_languages = (*env)->GetArrayLength(env, languages);
@@ -503,15 +597,13 @@ libpostal_normalize_options_t* mallocNormalizeOptions(JNIEnv *env, jobjectArray 
     options->expand_numex = expandNumex;
     options->roman_numerals = romanNumerals;
     options->address_components = addressComponents;
-
-    return options;
 }
 
 /*
  * Helper function to free a normalize options struct
  * @param options the normalize options struct
  */
-void freeNormalizeOptions(libpostal_normalize_options_t* options) {
+void cleanupNormalizeOptions(libpostal_normalize_options_t* options) {
     if (options == NULL) {
         return;
     }
@@ -523,9 +615,6 @@ void freeNormalizeOptions(libpostal_normalize_options_t* options) {
         }
         free(options->languages);
     }
-
-    // free the options struct
-    free(options);
 }
 
 /*
@@ -534,11 +623,6 @@ void freeNormalizeOptions(libpostal_normalize_options_t* options) {
  * @param message the message
  */
 void throwException(JNIEnv *env, const char *message) {
-    jclass exceptionClass  = (*env)->FindClass(env, "java/lang/RuntimeException");
-    if (exceptionClass == NULL) {
-        return;
-    }
-
     // throw the exception
     (*env)->ThrowNew(env, exceptionClass, message);
 }
