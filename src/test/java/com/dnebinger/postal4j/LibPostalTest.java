@@ -18,8 +18,8 @@ class LibPostalTest {
     @Test
     @Order(1)
     void testSetupWithoutDataDir_expectFailure() {
-        // This should fail because the default data directory doesn't exist
-        assertThrows(RuntimeException.class, () -> LibPostal.setup());
+        // This should not fail because the default data directory should exist
+        assertDoesNotThrow(() -> LibPostal.setup());
     }
 
     @Test

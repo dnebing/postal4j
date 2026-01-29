@@ -26,6 +26,18 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+// Fix task dependencies for tests
+tasks.named('compileTestJava') {
+    dependsOn 'copyNativeLib'
+}
+
+tasks.named('test') {
+    dependsOn 'copyNativeLib'
+    
+    // Also set the library path for test execution
+    systemProperty 'java.library.path', layout.buildDirectory.dir("resources/main/native/${getOsArch()}").get().asFile.absolutePath
+}
+
 // JNI header generation directory
 def jniHeaderDir = layout.buildDirectory.dir('generated/jni-headers')
 
